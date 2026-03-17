@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ledgar"
+version = "0.1.0"
+description = "command-line utility that searches a local copy of SEC EDGAR data to retrieve financial information for any publicly traded company"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "David Bethancourt" },
+]
+
+dependencies = [
+    "click>=8.1",
+    "requests>=2.31",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "responses>=0.23",
+    "black>=23.0",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+ledgar = "ledgar.ledgar:cli"
+
+[tool.setuptools.packages.find]
+include = ["ledgar*"]
+
+[tool.black]
+line-length = 88
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
