@@ -12,8 +12,10 @@ from ledgar.edgar.client import EdgarClient
 from ledgar.edgar.parser import (
     COMPANYFACTS_SINGLE_URL,
     COMPANY_TICKERS_URL,
+    FULL_INDEX_URL,
     parse_company_facts,
     parse_company_tickers,
+    parse_master_index,
 )
 
 log = logging.getLogger(__name__)
@@ -164,3 +166,55 @@ def _download_bulk_financials(
         f"Loaded {total_facts:,} financial facts from {total_companies:,} companies.",
         err=True,
     )
+
+
+@download.command("full-index")
+@click.option("--year", default=None, type=int, help="Filing year (e.g., 2024).")
+@click.option(
+    "--quarter", default=None, type=click.IntRange(1, 4), help="Filing quarter (1-4)."
+)
+@click.option("--force", is_flag=True, help="Re-download even if data exists.")
+@click.pass_context
+def full_index(ctx: click.Context, year: int | None, quarter: int | None, force: bool):
+    """Download filing index from SEC EDGAR."""
+    from datetime import datetime, timezone
+
+    if year is None:
+        now = datetime.now(timezone.utc)
+        year = now.year
+        quarter = quarter or ((now.month - 1) // 3 + 1)
+    elif quarter is None:
+        raise click.UsageError("--quarter is required when --year is specified.")
+
+    data_dir_override = ctx.obj.get("data_dir")
+    db_path = get_db_path(data_dir_override)
+    store = DataStore(str(db_path))
+
+    try:
+        meta_key = f"index_{year}_Q{quarter}"
+        last_dl = store.get_metadata(meta_key)
+        if last_dl and not force:
+            click.echo(
+                f"Index for {year} Q{quarter} already downloaded ({last_dl}). "
+                "Use --force to re-download.",
+                err=True,
+            )
+            return
+
+        user_agent = get_user_agent()
+        client = EdgarClient(user_agent)
+
+        url = FULL_INDEX_URL.format(year=year, quarter=quarter)
+        click.echo(f"Downloading filing index for {year} Q{quarter}...", err=True)
+
+        raw = client.fetch_bytes(url)
+        text = raw.decode("utf-8", errors="replace")
+        rows = parse_master_index(text)
+
+        count = store.insert_filings(rows)
+        store.set_metadata_now(meta_key)
+        store.set_metadata_now("last_index_download")
+
+        click.echo(f"Loaded {count:,} filings for {year} Q{quarter}.", err=True)
+    finally:
+        store.close()

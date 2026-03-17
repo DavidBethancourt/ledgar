@@ -5,13 +5,21 @@ import click
 from ledgar.config import get_db_path
 from ledgar.db.store import DataStore
 from ledgar.edgar.parser import list_metrics, resolve_metric
-from ledgar.formatters.table import format_companies_table, format_financials_table
+from ledgar.formatters import get_formatter
 
 
 @click.group()
+@click.option(
+    "--output",
+    type=click.Choice(["table", "json", "csv"], case_sensitive=False),
+    default="table",
+    help="Output format (default: table).",
+)
 @click.pass_context
-def search(ctx: click.Context):
+def search(ctx: click.Context, output: str):
     """Query the local EDGAR data store."""
+    ctx.ensure_object(dict)
+    ctx.obj["output"] = output
 
 
 @search.command()
@@ -46,7 +54,8 @@ def company(ctx: click.Context, name: str | None, ticker: str | None):
             click.echo("No companies found.", err=True)
             return
 
-        format_companies_table(rows)
+        fmt = get_formatter(ctx.obj.get("output", "table"), "companies")
+        fmt(rows)
     finally:
         store.close()
 
@@ -108,6 +117,62 @@ def financials(
             click.echo("No financial data found.", err=True)
             return
 
-        format_financials_table(rows)
+        fmt = get_formatter(ctx.obj.get("output", "table"), "financials")
+        fmt(rows)
+    finally:
+        store.close()
+
+
+@search.command()
+@click.option("--cik", default=None, type=int, help="Company CIK number.")
+@click.option("--ticker", default=None, help="Company ticker symbol.")
+@click.option(
+    "--form-type",
+    default=None,
+    help="Filter by form type (e.g., 10-K, 10-Q, 8-K).",
+)
+@click.option("--start-date", default=None, help="Start date (YYYY-MM-DD).")
+@click.option("--end-date", default=None, help="End date (YYYY-MM-DD).")
+@click.pass_context
+def filing(
+    ctx: click.Context,
+    cik: int | None,
+    ticker: str | None,
+    form_type: str | None,
+    start_date: str | None,
+    end_date: str | None,
+):
+    """Search filings by company with optional filters."""
+    if not cik and not ticker:
+        raise click.UsageError("Provide --cik or --ticker.")
+    if cik and ticker:
+        raise click.UsageError("Provide --cik or --ticker, not both.")
+
+    data_dir = ctx.obj.get("data_dir")
+    db_path = get_db_path(data_dir)
+    if not db_path.exists():
+        click.echo(
+            "No data store found. Run 'ledgar download company-tickers' first.",
+            err=True,
+        )
+        raise SystemExit(2)
+
+    store = DataStore(str(db_path))
+    try:
+        if ticker:
+            resolved_cik = store.get_cik_for_ticker(ticker)
+            if resolved_cik is None:
+                click.echo(f"Ticker '{ticker}' not found.", err=True)
+                return
+            cik = resolved_cik
+
+        rows = store.search_filings(cik, form_type, start_date, end_date)
+
+        if not rows:
+            click.echo("No filings found.", err=True)
+            return
+
+        fmt = get_formatter(ctx.obj.get("output", "table"), "filings")
+        fmt(rows)
     finally:
         store.close()
