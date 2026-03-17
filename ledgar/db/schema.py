@@ -25,10 +25,10 @@ def create_tables(conn: sqlite3.Connection) -> None:
     )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_companies_name ON companies (name)")
 
-    # FTS5 virtual table for fuzzy/prefix company name search
+    # FTS5 virtual table for fuzzy/prefix company name search (standalone)
     cur.execute("""
         CREATE VIRTUAL TABLE IF NOT EXISTS companies_fts
-        USING fts5(name, content='companies', content_rowid='cik')
+        USING fts5(name)
     """)
 
     # --- filings ---

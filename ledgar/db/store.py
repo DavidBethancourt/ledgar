@@ -48,13 +48,15 @@ class DataStore:
             "INSERT OR REPLACE INTO companies (cik, name, ticker) VALUES (?, ?, ?)",
             rows,
         )
-        # Rebuild FTS index from content table
+        # Rebuild standalone FTS index from the deduplicated companies table
+        self.conn.execute("DELETE FROM companies_fts")
         self.conn.execute(
-            "INSERT INTO companies_fts(companies_fts) VALUES('rebuild')"
+            "INSERT INTO companies_fts(rowid, name) SELECT cik, name FROM companies"
         )
         self.conn.commit()
-        log.info("Inserted %d companies, FTS index rebuilt", len(rows))
-        return len(rows)
+        count = self.conn.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        log.info("Inserted %d companies, FTS index rebuilt", count)
+        return count
 
     def search_companies_by_name(self, query: str) -> list[dict]:
         """FTS5 prefix search on company name."""
@@ -62,9 +64,8 @@ class DataStore:
         rows = self.conn.execute(
             "SELECT c.cik, c.name, c.ticker "
             "FROM companies_fts f "
-            "JOIN companies c ON f.rowid = c.cik "
+            "JOIN companies c ON c.cik = f.rowid "
             "WHERE companies_fts MATCH ? "
-            "ORDER BY rank "
             "LIMIT 25",
             (fts_query,),
         ).fetchall()

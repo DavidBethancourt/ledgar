@@ -11,13 +11,13 @@ COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 
 
 def parse_company_tickers(data: dict) -> list[tuple[int, str, str]]:
-    """Parse company_tickers.json into (cik, ticker, name) tuples."""
+    """Parse company_tickers.json into (cik, name, ticker) tuples."""
     results = []
     for entry in data.values():
         cik = int(entry["cik_str"])
         ticker = entry.get("ticker", "")
         name = entry.get("title", "")
-        results.append((cik, ticker, name))
+        results.append((cik, name, ticker))
     return results
 
 
