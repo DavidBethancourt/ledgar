@@ -124,6 +124,7 @@ class TestCsvFormatters:
         reader = csv.DictReader(io.StringIO(out))
         rows = list(reader)
         assert rows[0]["period_end"] == "2023-09-30"
+        assert rows[0]["context_fiscal_year"] == "2023"
         assert rows[0]["metric"] == "Revenues"
 
     def test_empty_rows(self, capsys):

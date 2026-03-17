@@ -22,7 +22,7 @@ def format_financials_table(rows: list[dict]) -> None:
     """Render financial facts as a rich table to stdout."""
     table = Table(title="Financial Data")
     table.add_column("Period End", style="cyan")
-    table.add_column("Fiscal Year", justify="right", style="cyan")
+    table.add_column("Context FY", justify="right", style="cyan")
     table.add_column("Period", style="green")
     table.add_column("Value", justify="right", style="white bold")
     table.add_column("Unit", style="dim")

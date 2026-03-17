@@ -31,6 +31,7 @@
 
 - Financial metric search now keeps the best matching XBRL alias per reported period instead of dropping newer history when a company changes tags over time
 - Revenue search now recognizes `RevenueFromContractWithCustomerIncludingAssessedTax`, restoring newer histories for filers that moved off deprecated revenue tags
+- Financial table and CSV output now label SEC filing-context year clearly, reducing confusion with the actual `period_end` reporting date
 
 ---
 
