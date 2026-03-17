@@ -217,6 +217,51 @@ This is the core data structure. Each file contains all XBRL-reported metrics fo
 
 Useful for cross-company comparisons (e.g., "show me revenue for all companies in 2023").
 
+### Full-Index Master File (`full-index/{year}/QTR{q}/master.idx`)
+
+The master index is a **pipe-delimited plain text file**, not JSON. It lists every filing submitted in a given quarter.
+
+**Header (skip when parsing):** The file begins with ~9 lines of metadata, followed by a column header row and a separator of dashes:
+
+```
+Description:           Master Index of EDGAR Dissemination Feed
+Last Data Received:    March 31, 2024
+Comments:              webmaster@sec.gov
+Anonymous FTP:         ftp://ftp.sec.gov/edgar/
+Cloud HTTP:            https://www.sec.gov/Archives/
+
+
+
+CIK|Company Name|Form Type|Date Filed|Filename
+--------------------------------------------------------------------------------
+```
+
+**Data rows:** Five pipe-delimited columns:
+
+```
+1000045|NICHOLAS FINANCIAL INC|10-Q|2024-02-13|edgar/data/1000045/0000950170-24-014566.txt
+789019|MICROSOFT CORP|10-K|2024-07-30|edgar/data/789019/0000950170-24-087882.txt
+```
+
+| Column | Example | Maps to `filings` table |
+|---|---|---|
+| CIK | `1000045` | `cik` (integer) |
+| Company Name | `NICHOLAS FINANCIAL INC` | (join to `companies`; not stored in `filings`) |
+| Form Type | `10-Q`, `10-K`, `8-K`, etc. | `form_type` |
+| Date Filed | `2024-02-13` | `date_filed` |
+| Filename | `edgar/data/1000045/0000950170-24-014566.txt` | `file_path` |
+
+**Accession number extraction:** The accession number is not a separate column. Extract it from the Filename using the pattern `\d{10}-\d{2}-\d{6}` (e.g., `0000950170-24-014566` from the path above).
+
+**Parser must:**
+
+1. Skip all lines before the first data row (header lines, column names, dash separator).
+2. Split each line on `|` into exactly 5 fields.
+3. Extract the accession number from the Filename column via regex.
+4. Parse CIK as integer, Date Filed as ISO date string.
+
+**File size:** ~32 MB per quarter (uncompressed). A `.gz` compressed version is also available at the same path (`master.gz`, ~4 MB).
+
 ---
 
 ## XBRL Metric Alias Mapping
