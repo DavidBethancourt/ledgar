@@ -8,6 +8,7 @@ import sys
 import click
 
 from ledgar.commands.config import config
+from ledgar.commands.download import download
 from ledgar.config import get_db_path
 from ledgar.db.schema import create_tables
 
@@ -40,6 +41,7 @@ def cli(ctx: click.Context, verbose: int, data_dir: str | None):
 
 
 cli.add_command(config)
+cli.add_command(download)
 
 
 @cli.command()
