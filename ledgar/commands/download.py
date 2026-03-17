@@ -4,16 +4,22 @@ import logging
 
 import click
 
-from ledgar.config import get_db_path, get_user_agent
+from ledgar.config import get_data_dir, get_db_path, get_user_agent
 from ledgar.db.schema import create_tables, drop_all_tables
 from ledgar.db.store import DataStore
+from ledgar.edgar.bulk import download_companyfacts_zip, iter_companyfacts
 from ledgar.edgar.client import EdgarClient
-from ledgar.edgar.parser import COMPANY_TICKERS_URL, parse_company_tickers
+from ledgar.edgar.parser import (
+    COMPANYFACTS_SINGLE_URL,
+    COMPANY_TICKERS_URL,
+    parse_company_facts,
+    parse_company_tickers,
+)
 
 log = logging.getLogger(__name__)
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option(
     "--rebuild",
     is_flag=True,
@@ -71,3 +77,90 @@ def company_tickers(ctx: click.Context, force: bool):
         click.echo(f"Downloaded {count:,} companies.", err=True)
     finally:
         store.close()
+
+
+@download.command("financials")
+@click.option("--cik", default=None, type=int, help="Download for a single company CIK.")
+@click.option("--force", is_flag=True, help="Re-download even if data exists.")
+@click.pass_context
+def financials(ctx: click.Context, cik: int | None, force: bool):
+    """Download XBRL financial facts (bulk or single company)."""
+    data_dir_override = ctx.obj.get("data_dir")
+    db_path = get_db_path(data_dir_override)
+    store = DataStore(str(db_path))
+
+    try:
+        if cik:
+            _download_single_financials(store, cik, force)
+        else:
+            _download_bulk_financials(store, data_dir_override, force)
+    finally:
+        store.close()
+
+
+def _download_single_financials(store: DataStore, cik: int, force: bool) -> None:
+    """Download financial facts for a single company."""
+    last_dl = store.get_metadata("last_financials_download")
+    if last_dl and not force:
+        click.echo(
+            f"Financial data already downloaded ({last_dl}). "
+            "Use --force to re-download.",
+            err=True,
+        )
+        return
+
+    user_agent = get_user_agent()
+    client = EdgarClient(user_agent)
+
+    url = COMPANYFACTS_SINGLE_URL.format(cik=cik)
+    click.echo(f"Downloading financials for CIK {cik}...", err=True)
+    data = client.fetch_json(url)
+    rows = parse_company_facts(cik, data)
+
+    count = store.insert_financial_facts(rows)
+    click.echo(f"Loaded {count:,} financial facts for CIK {cik}.", err=True)
+
+
+def _download_bulk_financials(
+    store: DataStore, data_dir_override: str | None, force: bool
+) -> None:
+    """Download bulk companyfacts.zip and load all financial facts."""
+    last_dl = store.get_metadata("last_financials_download")
+    if last_dl and not force:
+        click.echo(
+            f"Financial data already downloaded ({last_dl}). "
+            "Use --force to re-download.",
+            err=True,
+        )
+        return
+
+    user_agent = get_user_agent()
+    client = EdgarClient(user_agent)
+    data_dir = get_data_dir(data_dir_override)
+
+    zip_path = download_companyfacts_zip(client, data_dir)
+
+    total_facts = 0
+    total_companies = 0
+    batch = []
+    batch_size = 10_000
+
+    for company_cik, data in iter_companyfacts(zip_path):
+        rows = parse_company_facts(company_cik, data)
+        batch.extend(rows)
+        total_companies += 1
+
+        if len(batch) >= batch_size:
+            total_facts += store.insert_financial_facts(batch)
+            batch = []
+
+    if batch:
+        total_facts += store.insert_financial_facts(batch)
+
+    store.set_metadata_now("last_financials_download")
+    store.set_metadata("fact_count", str(total_facts))
+
+    click.echo(
+        f"Loaded {total_facts:,} financial facts from {total_companies:,} companies.",
+        err=True,
+    )
