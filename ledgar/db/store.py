@@ -113,33 +113,64 @@ class DataStore:
         xbrl_tags: list[str],
         period: str | None = None,
     ) -> list[dict]:
-        """Query financial facts for a company and metric tags."""
+        """Query financial facts and keep the best matching row per reported period."""
         placeholders = ",".join("?" for _ in xbrl_tags)
-        sql = (
-            f"SELECT * FROM financial_facts "
-            f"WHERE cik = ? AND metric IN ({placeholders})"
+        tag_rank_sql = " ".join(
+            f"WHEN metric = ? THEN {index}"
+            for index, _tag in enumerate(xbrl_tags, start=1)
         )
-        params: list = [cik, *xbrl_tags]
+
+        sql = f"""
+            WITH ranked AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY fiscal_period, period_end
+                        ORDER BY
+                            CASE {tag_rank_sql} ELSE 999 END,
+                            CASE
+                                WHEN fiscal_period = 'FY' AND form_type = '10-K' THEN 0
+                                WHEN fiscal_period IN ('Q1', 'Q2', 'Q3', 'Q4')
+                                     AND form_type = '10-Q' THEN 0
+                                ELSE 1
+                            END,
+                            period_end DESC,
+                            accession_number DESC,
+                            id DESC
+                    ) AS row_num
+                FROM financial_facts
+                WHERE cik = ? AND metric IN ({placeholders})
+        """
+        params: list = [*xbrl_tags, cik, *xbrl_tags]
 
         if period == "annual":
             sql += " AND fiscal_period = 'FY'"
         elif period == "quarterly":
             sql += " AND fiscal_period IN ('Q1', 'Q2', 'Q3', 'Q4')"
 
-        sql += " ORDER BY fiscal_year DESC, period_end DESC"
+        sql += """
+            )
+            SELECT
+                id,
+                cik,
+                taxonomy,
+                metric,
+                label,
+                period_start,
+                period_end,
+                value,
+                unit,
+                form_type,
+                accession_number,
+                fiscal_year,
+                fiscal_period
+            FROM ranked
+            WHERE row_num = 1
+            ORDER BY period_end DESC
+        """
 
         rows = self.conn.execute(sql, params).fetchall()
-        results = [dict(r) for r in rows]
-
-        # Tag preference: if multiple tags returned, keep only the most common one
-        if results and len(set(r["metric"] for r in results)) > 1:
-            from collections import Counter
-
-            tag_counts = Counter(r["metric"] for r in results)
-            best_tag = tag_counts.most_common(1)[0][0]
-            results = [r for r in results if r["metric"] == best_tag]
-
-        return results
+        return [dict(r) for r in rows]
 
     # --- Filings ---
 

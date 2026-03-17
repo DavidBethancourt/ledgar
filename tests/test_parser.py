@@ -89,6 +89,7 @@ class TestResolveMetric:
     def test_known_metric(self):
         tags = resolve_metric("revenue")
         assert "Revenues" in tags
+        assert "RevenueFromContractWithCustomerIncludingAssessedTax" in tags
         assert isinstance(tags, list)
 
     def test_unknown_metric(self):

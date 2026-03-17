@@ -105,6 +105,159 @@ class TestFinancialFacts:
         # Insert same facts again — should not error due to INSERT OR IGNORE
         tmp_db.insert_financial_facts(sample_financial_facts)
 
+    def test_prefers_best_alias_per_period(self, tmp_db, sample_companies):
+        tmp_db.insert_companies(sample_companies)
+        tmp_db.insert_financial_facts([
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "SalesRevenueNet",
+                "label": "Revenue",
+                "period_start": "2018-01-01",
+                "period_end": "2018-12-31",
+                "value": 100.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-19-000001",
+                "fiscal_year": 2018,
+                "fiscal_period": "FY",
+            },
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "Revenues",
+                "label": "Revenue",
+                "period_start": "2018-01-01",
+                "period_end": "2018-12-31",
+                "value": 110.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-19-000002",
+                "fiscal_year": 2018,
+                "fiscal_period": "FY",
+            },
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "RevenueFromContractWithCustomerExcludingAssessedTax",
+                "label": "Revenue",
+                "period_start": "2019-01-01",
+                "period_end": "2019-12-31",
+                "value": 120.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-20-000001",
+                "fiscal_year": 2019,
+                "fiscal_period": "FY",
+            },
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "SalesRevenueNet",
+                "label": "Revenue",
+                "period_start": "2020-01-01",
+                "period_end": "2020-12-31",
+                "value": 130.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-21-000001",
+                "fiscal_year": 2020,
+                "fiscal_period": "FY",
+            },
+        ])
+
+        results = tmp_db.search_financials(
+            320193,
+            [
+                "Revenues",
+                "RevenueFromContractWithCustomerExcludingAssessedTax",
+                "SalesRevenueNet",
+            ],
+            period="annual",
+        )
+
+        assert [row["fiscal_year"] for row in results] == [2020, 2019, 2018]
+        assert results[0]["metric"] == "SalesRevenueNet"
+        assert results[1]["metric"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+        assert results[2]["metric"] == "Revenues"
+
+    def test_prefers_10k_for_annual_period(self, tmp_db, sample_companies):
+        tmp_db.insert_companies(sample_companies)
+        tmp_db.insert_financial_facts([
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "Revenues",
+                "label": "Revenue",
+                "period_start": "2023-01-01",
+                "period_end": "2023-12-31",
+                "value": 200.0,
+                "unit": "USD",
+                "form_type": "8-K",
+                "accession_number": "0000000001-24-000001",
+                "fiscal_year": 2023,
+                "fiscal_period": "FY",
+            },
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "Revenues",
+                "label": "Revenue",
+                "period_start": "2023-01-01",
+                "period_end": "2023-12-31",
+                "value": 210.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-24-000002",
+                "fiscal_year": 2023,
+                "fiscal_period": "FY",
+            },
+        ])
+
+        results = tmp_db.search_financials(320193, ["Revenues"], period="annual")
+
+        assert len(results) == 1
+        assert results[0]["form_type"] == "10-K"
+        assert results[0]["value"] == 210.0
+
+    def test_collapses_comparative_facts_from_multiple_filings(self, tmp_db, sample_companies):
+        tmp_db.insert_companies(sample_companies)
+        tmp_db.insert_financial_facts([
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "Revenues",
+                "label": "Revenue",
+                "period_start": "2022-01-01",
+                "period_end": "2022-12-31",
+                "value": 190.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-23-000001",
+                "fiscal_year": 2022,
+                "fiscal_period": "FY",
+            },
+            {
+                "cik": 320193,
+                "taxonomy": "us-gaap",
+                "metric": "Revenues",
+                "label": "Revenue",
+                "period_start": "2022-01-01",
+                "period_end": "2022-12-31",
+                "value": 190.0,
+                "unit": "USD",
+                "form_type": "10-K",
+                "accession_number": "0000000001-24-000001",
+                "fiscal_year": 2023,
+                "fiscal_period": "FY",
+            },
+        ])
+
+        results = tmp_db.search_financials(320193, ["Revenues"], period="annual")
+
+        assert len(results) == 1
+        assert results[0]["accession_number"] == "0000000001-24-000001"
+
 
 class TestFilings:
     def test_insert_and_search(self, tmp_db, sample_companies, sample_filings):

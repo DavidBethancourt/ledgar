@@ -45,6 +45,7 @@ def filing_rows():
 def financial_rows():
     return [
         {
+            "period_end": "2023-09-30",
             "fiscal_year": 2023,
             "fiscal_period": "FY",
             "value": 383285000000,
@@ -122,6 +123,7 @@ class TestCsvFormatters:
         out = capsys.readouterr().out
         reader = csv.DictReader(io.StringIO(out))
         rows = list(reader)
+        assert rows[0]["period_end"] == "2023-09-30"
         assert rows[0]["metric"] == "Revenues"
 
     def test_empty_rows(self, capsys):

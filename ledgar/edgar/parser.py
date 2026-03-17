@@ -93,6 +93,7 @@ METRIC_ALIASES: dict[str, list[str]] = {
     # Income Statement
     "revenue": [
         "Revenues",
+        "RevenueFromContractWithCustomerIncludingAssessedTax",
         "RevenueFromContractWithCustomerExcludingAssessedTax",
         "SalesRevenueNet",
     ],

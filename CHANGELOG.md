@@ -27,6 +27,11 @@
 - **Step 8**: Output formatters (`--output table|json|csv`) on all search commands
 - **Step 9**: Error hierarchy (`ledgar/errors.py`), test suite (64 tests), pytest configuration
 
+### Fixed
+
+- Financial metric search now keeps the best matching XBRL alias per reported period instead of dropping newer history when a company changes tags over time
+- Revenue search now recognizes `RevenueFromContractWithCustomerIncludingAssessedTax`, restoring newer histories for filers that moved off deprecated revenue tags
+
 ---
 
 <!-- Entry template — copy this block for each new release:

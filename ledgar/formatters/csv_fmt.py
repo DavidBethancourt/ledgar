@@ -18,7 +18,7 @@ def format_financials_csv(rows: list[dict]) -> None:
     if not rows:
         return
     fields = [
-        "fiscal_year", "fiscal_period", "value", "unit",
+        "period_end", "fiscal_year", "fiscal_period", "value", "unit",
         "metric", "form_type", "accession_number",
     ]
     writer = csv.DictWriter(sys.stdout, fieldnames=fields, extrasaction="ignore")
