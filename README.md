@@ -62,6 +62,9 @@ ledgar search company --name "Apple"
 # Download all structured financial data (~1.5 GB, one-time)
 ledgar download financials
 
+# Download financial facts for a single company (incremental)
+ledgar download financials --cik 320193
+
 # Search for Apple's revenue
 ledgar search financials --ticker AAPL --metric revenue --period annual
 ```
