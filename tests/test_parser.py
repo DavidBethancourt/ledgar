@@ -56,9 +56,57 @@ class TestParseCompanyFacts:
         assert len(rows) == 1
         assert rows[0]["cik"] == 123
         assert rows[0]["metric"] == "Revenues"
-        assert rows[0]["value"] == 100000
+        assert rows[0]["value"] == 100000.0
+        assert isinstance(rows[0]["value"], float)
         assert rows[0]["taxonomy"] == "us-gaap"
         assert rows[0]["fiscal_year"] == 2022
+
+    def test_value_coerced_to_float(self):
+        """Large ints must survive as float to avoid SQLite overflow."""
+        data = {
+            "facts": {
+                "us-gaap": {
+                    "SharesOutstanding": {
+                        "label": "Shares Outstanding",
+                        "units": {
+                            "shares": [
+                                {
+                                    "end": "2023-12-31",
+                                    "val": 99_999_999_999_999_999_999,
+                                    "form": "10-K",
+                                    "accn": "0001234567-24-000001",
+                                    "fy": 2023,
+                                    "fp": "FY",
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+        rows = parse_company_facts(1, data)
+        assert len(rows) == 1
+        assert isinstance(rows[0]["value"], float)
+
+    def test_null_value_skipped(self):
+        """Data points with val=None are dropped."""
+        data = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "label": "Revenues",
+                        "units": {
+                            "USD": [
+                                {"end": "2022-12-31", "val": None, "form": "10-K"},
+                                {"end": "2022-12-31", "form": "10-K"},
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+        rows = parse_company_facts(1, data)
+        assert rows == []
 
     def test_empty_facts(self):
         assert parse_company_facts(123, {"facts": {}}) == []

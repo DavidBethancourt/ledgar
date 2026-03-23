@@ -37,6 +37,9 @@ def parse_company_facts(cik: int, data: dict) -> list[dict]:
             units = metric_data.get("units", {})
             for unit_name, data_points in units.items():
                 for dp in data_points:
+                    raw_val = dp.get("val")
+                    if raw_val is None:
+                        continue
                     rows.append({
                         "cik": cik,
                         "taxonomy": taxonomy,
@@ -44,7 +47,7 @@ def parse_company_facts(cik: int, data: dict) -> list[dict]:
                         "label": label,
                         "period_start": dp.get("start"),
                         "period_end": dp.get("end"),
-                        "value": dp.get("val"),
+                        "value": float(raw_val),
                         "unit": unit_name,
                         "form_type": dp.get("form"),
                         "accession_number": dp.get("accn"),
