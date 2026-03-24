@@ -125,7 +125,7 @@ class DataStore:
                 SELECT
                     *,
                     ROW_NUMBER() OVER (
-                        PARTITION BY fiscal_period, period_end
+                        PARTITION BY fiscal_year, fiscal_period
                         ORDER BY
                             CASE {tag_rank_sql} ELSE 999 END,
                             CASE
